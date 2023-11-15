@@ -160,12 +160,10 @@ func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, 
 					code: resp.StatusCode,
 					msg:  fmt.Sprintf("Upload for %s failed: %v\n", testReq.sis_user_id, string(body)),
 				})
-
 			}
 		}
 		_ = resp.Body.Close()
 	}
-
 	return sucessfulReqs, failedReqs, nil
 }
 
@@ -191,17 +189,22 @@ func main() {
 	rootCmd.Flags().IntVarP(&studentIdCol, "sid", "i", 0, "Index of student id column (default 0)")
 	rootCmd.Flags().IntVarP(&scoreCol, "score", "s", 1, "Index of score column")
 	rootCmd.Flags().IntVarP(&commentCol, "comment", "t", 2, "Index of comment column")
-
-	rootCmd.Run = func(cmd *cobra.Command, args []string) {
-
-		if courseID <= 0 || assignID <= 0 || csvFile == "" {
+	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
+		if len(args) != 0 {
+			csvFile = args[0]
+		} else if len(args) == 0 || (courseID <= 0 || assignID <= 0 || headerRow <= 0 || scoreCol <= 0 || commentCol <= 0 || csvFile == "") {
+			fmt.Printf("Invalid usage!\n")
 			err := cmd.Help()
 			if err != nil {
 				logger.Printf("Error Running command %v", err)
 				os.Exit(-2)
 			}
+			os.Exit(-1)
 			return
 		}
+	}
+	rootCmd.Run = func(cmd *cobra.Command, args []string) {
+
 		fmt.Printf("Course Id: %d\nAssign Id: %d\nHeader Row index: %d\nStudent Id Col: %d\nScore Col: %d\nComment Col: %d\nFile: %s\n", courseID, assignID, headerRow, studentIdCol, scoreCol, commentCol, csvFile)
 		rootDir := filepath.Dir(csvFile)
 		//Implement your logic to record attendance here.
@@ -246,12 +249,12 @@ func main() {
 
 	}
 
-	rootCmd.Args = cobra.ExactArgs(1)
-	rootCmd.Args = func(cmd *cobra.Command, args []string) error {
-
-		csvFile = args[0]
-		return nil
-	}
+	//rootCmd.Args = cobra.ExactArgs(1)
+	//rootCmd.Args = func(cmd *cobra.Command, args []string) error {
+	//
+	//	csvFile = args[0]
+	//	return nil
+	//}
 
 	if err := rootCmd.Execute(); err != nil {
 		logger.Printf("Error Running command %v", err)
