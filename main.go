@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -113,8 +114,9 @@ func buildRequests(data map[string]AssignmentFeedback, courseNumber int, assignm
 	return reqs, nil
 }
 
-func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, error) {
-	results := make([]ResponseResult, len(reqs))
+func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, []ResponseResult, error) {
+	sucessfulReqs := make([]ResponseResult, len(reqs))
+	var failedReqs []ResponseResult
 	for i := range reqs {
 		if i%15 == 0 {
 			time.Sleep(time.Second)
@@ -129,7 +131,7 @@ func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, 
 
 		putReq, err := http.NewRequest(testReq.method, testReq.url, strings.NewReader(payload.Encode()))
 		if err != nil {
-			results[i] = ResponseResult{
+			sucessfulReqs[i] = ResponseResult{
 				msg:  fmt.Sprintf("Failed to make new request\n\t%v\n", err),
 				code: 500,
 			}
@@ -139,7 +141,7 @@ func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, 
 		}
 		resp, err := client.Do(putReq)
 		if err != nil {
-			results[i] = ResponseResult{
+			sucessfulReqs[i] = ResponseResult{
 				msg:  fmt.Sprintf("Failed to start request\n\t%v\n", err),
 				code: 500,
 			}
@@ -149,17 +151,22 @@ func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, 
 
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				results[i] = ResponseResult{
+				failedReqs = append(failedReqs, ResponseResult{
 					msg:  fmt.Sprintf("Failed to read request body\n\t%v\n", body),
 					code: 500,
-				}
+				})
+			} else {
+				failedReqs = append(failedReqs, ResponseResult{
+					code: resp.StatusCode,
+					msg:  fmt.Sprintf("Upload for %s failed: %v\n", testReq.sis_user_id, string(body)),
+				})
+
 			}
-			fmt.Printf("Upload for %s failed: %v\n", testReq.sis_user_id, string(body))
 		}
 		_ = resp.Body.Close()
 	}
 
-	return results, nil
+	return sucessfulReqs, failedReqs, nil
 }
 
 func main() {
@@ -196,7 +203,7 @@ func main() {
 			return
 		}
 		fmt.Printf("Course Id: %d\nAssign Id: %d\nHeader Row index: %d\nStudent Id Col: %d\nScore Col: %d\nComment Col: %d\nFile: %s\n", courseID, assignID, headerRow, studentIdCol, scoreCol, commentCol, csvFile)
-
+		rootDir := filepath.Dir(csvFile)
 		//Implement your logic to record attendance here.
 		data, err := readCSV(csvFile, ReaderOptions{
 			headerRow:    headerRow,
@@ -216,12 +223,27 @@ func main() {
 		}
 		//start to send reqs
 		client := &http.Client{}
-		cnt, err := sendRequests(client, builtReqs)
+		results, failedRequests, err := sendRequests(client, builtReqs)
 		if err != nil {
 			logger.Printf("Error Running command %v", err)
 			os.Exit(-2)
 		}
-		fmt.Printf("%d requests were sent\n", len(cnt))
+		fmt.Printf("%d requests were sent\n", len(results))
+		if len(failedRequests) > 0 {
+			errorsFile, err := os.Create(fmt.Sprintf("%s/errors.txt", rootDir))
+			if err != nil {
+				logger.Printf("Error creating errors file command %v", err)
+				os.Exit(-2)
+			}
+			for _, request := range failedRequests {
+				_, err := errorsFile.WriteString(request.msg + "\n")
+				if err != nil {
+					logger.Printf("Error writting to errors file command %v", err)
+					os.Exit(-2)
+				}
+			}
+		}
+
 	}
 
 	rootCmd.Args = cobra.ExactArgs(1)
