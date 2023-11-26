@@ -45,7 +45,7 @@ func readCSV(filename string, options ReaderOptions) (map[string]AssignmentFeedb
 
 	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Println("Error opening CSV file:", err)
+		_, _ = fmt.Fprintf(os.Stderr,"error opening CSV file: %v\n", err)
 		return nil, err
 	}
 
@@ -196,7 +196,7 @@ func main() {
 			fmt.Printf("Invalid usage!\n")
 			err := cmd.Help()
 			if err != nil {
-				logger.Printf("Error Running command %v", err)
+				_, _ = fmt.Fprintf(os.Stderr, "Error Running command %v", err)
 				os.Exit(-2)
 			}
 			os.Exit(-1)
@@ -215,33 +215,33 @@ func main() {
 			commentCol:   commentCol,
 		})
 		if err != nil {
-			logger.Printf("Error Running command %v", err)
+			_, _ = fmt.Fprintf(os.Stderr, "error Running command %v\n", err)
 			os.Exit(-2)
 		}
 
 		builtReqs, err := buildRequests(data, courseID, assignID)
 		if err != nil {
-			logger.Printf("Error Running command %v", err)
+			_, _ = fmt.Fprintf(os.Stderr, "error Running command %v\n", err)
 			os.Exit(-2)
 		}
 		//start to send reqs
 		client := &http.Client{}
 		results, failedRequests, err := sendRequests(client, builtReqs)
 		if err != nil {
-			logger.Printf("Error Running command %v", err)
+			_, _ = fmt.Fprintf(os.Stderr, "error Running command %v\n", err)
 			os.Exit(-2)
 		}
 		fmt.Printf("%d requests were sent\n", len(results))
 		if len(failedRequests) > 0 {
 			errorsFile, err := os.Create(fmt.Sprintf("%s/errors.txt", rootDir))
 			if err != nil {
-				logger.Printf("Error creating errors file command %v", err)
+				_, _ = fmt.Fprintf(os.Stderr,"Error creating errors file command %v", err)
 				os.Exit(-2)
 			}
 			for _, request := range failedRequests {
 				_, err := errorsFile.WriteString(request.msg + "\n")
 				if err != nil {
-					logger.Printf("Error writting to errors file command %v", err)
+					_, _ = fmt.Fprintf(os.Stderr,"Error writting to errors file command %v", err)
 					os.Exit(-2)
 				}
 			}
