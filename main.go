@@ -45,7 +45,7 @@ func readCSV(filename string, options ReaderOptions) (map[string]AssignmentFeedb
 
 	file, err := os.Open(filename)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr,"error opening CSV file: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "error opening CSV file: %v\n", err)
 		return nil, err
 	}
 
@@ -235,27 +235,18 @@ func main() {
 		if len(failedRequests) > 0 {
 			errorsFile, err := os.Create(fmt.Sprintf("%s/errors.txt", rootDir))
 			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr,"Error creating errors file command %v", err)
+				_, _ = fmt.Fprintf(os.Stderr, "Error creating errors file command %v", err)
 				os.Exit(-2)
 			}
 			for _, request := range failedRequests {
 				_, err := errorsFile.WriteString(request.msg + "\n")
 				if err != nil {
-					_, _ = fmt.Fprintf(os.Stderr,"Error writting to errors file command %v", err)
+					_, _ = fmt.Fprintf(os.Stderr, "Error writting to errors file command %v", err)
 					os.Exit(-2)
 				}
 			}
 		}
-
 	}
-
-	//rootCmd.Args = cobra.ExactArgs(1)
-	//rootCmd.Args = func(cmd *cobra.Command, args []string) error {
-	//
-	//	csvFile = args[0]
-	//	return nil
-	//}
-
 	if err := rootCmd.Execute(); err != nil {
 		logger.Printf("Error Running command %v", err)
 		os.Exit(-2)
