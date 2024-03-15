@@ -182,12 +182,21 @@ func main() {
 	var scoreCol int
 	var commentCol int
 
-	rootCmd.Flags().IntVarP(&courseID, "courseid", "c", 0, "Course ID")
-	rootCmd.Flags().IntVarP(&assignID, "assignid", "a", 0, "Attendance Assignment ID")
+	rootCmd.Flags().IntVarP(&courseID, "courseid", "c", 0, "Course ID (Required)")
+	rootCmd.Flags().IntVarP(&assignID, "assignid", "a", 0, "Attendance Assignment ID (Required)")
 	rootCmd.Flags().IntVarP(&headerRow, "headerow", "r", 0, "Index of header row (default 0)")
 	rootCmd.Flags().IntVarP(&studentIdCol, "sid", "i", 0, "Index of student id column (default 0)")
 	rootCmd.Flags().IntVarP(&scoreCol, "score", "s", 1, "Index of score column")
 	rootCmd.Flags().IntVarP(&commentCol, "comment", "t", 2, "Index of comment column")
+	var err = rootCmd.MarkFlagRequired("courseid")
+	if err != nil {
+		return
+	}
+	err = rootCmd.MarkFlagRequired("assignid")
+	if err != nil {
+		return
+	}
+
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		if len(args) != 0 {
 			csvFile = args[0]
