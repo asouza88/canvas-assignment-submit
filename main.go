@@ -9,9 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
-	"time"
+	"sync"
 )
 
 type CanvasRequest struct {
@@ -114,15 +113,11 @@ func buildRequests(data map[string]AssignmentFeedback, courseNumber int, assignm
 	return reqs, nil
 }
 
-func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, []ResponseResult, error) {
-	sucessfulReqs := make([]ResponseResult, len(reqs))
-	var failedReqs []ResponseResult
-	for i := range reqs {
-		if i%15 == 0 {
-			time.Sleep(time.Second)
-		}
-		var testReq = reqs[i]
+func sendRequests(client *http.Client, reqs []CanvasRequest, outChan *chan ResponseResult, wg *sync.WaitGroup) {
+	defer wg.Done()
 
+	for i := range reqs {
+		var testReq = reqs[i]
 		payload := url.Values{}
 
 		for key, value := range testReq.data {
@@ -131,9 +126,9 @@ func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, 
 
 		putReq, err := http.NewRequest(testReq.method, testReq.url, strings.NewReader(payload.Encode()))
 		if err != nil {
-			sucessfulReqs[i] = ResponseResult{
-				msg:  fmt.Sprintf("Failed to make new request\n\t%v\n", err),
+			*outChan <- ResponseResult{
 				code: 500,
+				msg:  fmt.Sprintf("Failed to make new request\n\t%v\n", err),
 			}
 		}
 		for key, value := range testReq.headers {
@@ -141,9 +136,9 @@ func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, 
 		}
 		resp, err := client.Do(putReq)
 		if err != nil {
-			sucessfulReqs[i] = ResponseResult{
-				msg:  fmt.Sprintf("Failed to start request\n\t%v\n", err),
+			*outChan <- ResponseResult{
 				code: 500,
+				msg:  fmt.Sprintf("Failed to start request\n\t%v\n", err),
 			}
 		}
 
@@ -151,20 +146,24 @@ func sendRequests(client *http.Client, reqs []CanvasRequest) ([]ResponseResult, 
 
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				failedReqs = append(failedReqs, ResponseResult{
-					msg:  fmt.Sprintf("Failed to read request body\n\t%v\n", body),
+				*outChan <- ResponseResult{
 					code: 500,
-				})
+					msg:  fmt.Sprintf("Failed to read request body\n\t%v\n", body),
+				}
 			} else {
-				failedReqs = append(failedReqs, ResponseResult{
+				*outChan <- ResponseResult{
 					code: resp.StatusCode,
 					msg:  fmt.Sprintf("Upload for %s failed: %v\n", testReq.sis_user_id, string(body)),
-				})
+				}
+			}
+		} else {
+			*outChan <- ResponseResult{
+				code: resp.StatusCode,
+				msg:  fmt.Sprintf("Upload for %s success: %v\n", testReq.sis_user_id, resp.Status),
 			}
 		}
 		_ = resp.Body.Close()
 	}
-	return sucessfulReqs, failedReqs, nil
 }
 
 func main() {
@@ -206,8 +205,7 @@ func main() {
 	rootCmd.Run = func(cmd *cobra.Command, args []string) {
 
 		fmt.Printf("Course Id: %d\nAssign Id: %d\nHeader Row index: %d\nStudent Id Col: %d\nScore Col: %d\nComment Col: %d\nFile: %s\n", courseID, assignID, headerRow, studentIdCol, scoreCol, commentCol, csvFile)
-		rootDir := filepath.Dir(csvFile)
-		//Implement your logic to record attendance here.
+		//rootDir := filepath.Dir(csvFile)
 		data, err := readCSV(csvFile, ReaderOptions{
 			headerRow:    headerRow,
 			studentIdCol: studentIdCol,
@@ -226,27 +224,40 @@ func main() {
 		}
 		//start to send reqs
 		client := &http.Client{}
-		results, failedRequests, err := sendRequests(client, builtReqs)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error Running command %v\n", err)
-			os.Exit(-2)
-		}
-		fmt.Printf("%d requests were sent\n", len(results))
-		if len(failedRequests) > 0 {
-			errorsFile, err := os.Create(fmt.Sprintf("%s/errors.txt", rootDir))
+		batchSize := 20
+		var wg sync.WaitGroup
+		comm := make(chan ResponseResult, len(builtReqs))
+		for i := 0; i < len(builtReqs); i += batchSize {
+			end := i + batchSize
+			if end > len(builtReqs) {
+				end = len(builtReqs)
+			}
+			wg.Add(1)
+			go sendRequests(client, builtReqs[i:end], &comm, &wg)
 			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "Error creating errors file command %v", err)
+				_, _ = fmt.Fprintf(os.Stderr, "error Running command %v\n", err)
 				os.Exit(-2)
 			}
-			for _, request := range failedRequests {
-				_, err := errorsFile.WriteString(request.msg + "\n")
-				if err != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "Error writting to errors file command %v", err)
-					os.Exit(-2)
-				}
+		}
+		//wait for all go routines to finish their batches
+		go func() {
+			wg.Wait()
+			close(comm)
+		}()
+		failed := 0.0
+		success := 0.0
+		size := float64(len(builtReqs))
+		for response := range comm {
+			if response.code >= 400 {
+				_, _ = fmt.Fprintf(os.Stderr, "\n%s\n", response.msg)
+				failed++
+			} else {
+				success++
 			}
+			fmt.Printf("\rTotal: %4.f Success: %.f Failed: %.f  %.2f%%", size, success, failed, ((success+failed)/size)*100)
 		}
 	}
+
 	if err := rootCmd.Execute(); err != nil {
 		logger.Printf("Error Running command %v", err)
 		os.Exit(-2)
