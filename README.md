@@ -43,15 +43,15 @@ go run . -c cavnasid -a assignmentid csvfile
 ## Example usage
 
 ```bash
-cal -a 12345 -c 67890 csvfile
+cal -c 12345 -a 67890 csvfile
 ```
 
 ### Arguments
 
 | Flag | Type | Description                         | Default  |
 | ---- | ---- | ----------------------------------- | -------- |
-| -a   | int  | Canvas Assignment ID                | required |
 | -c   | int  | Canvas Course ID                    | required |
+| -a   | int  | Canvas Assignment ID                | required |
 | -h   | int  | Header row index in the CSV         | 0        |
 | -i   | int  | Column index for Student ID         | 0        |
 | -s   | int  | Column index for Assignment Score   | 1        |
