@@ -40,6 +40,15 @@ This project includes two build scripts for cross-compiling:
 go run . -c cavnasid -a assignmentid csvfile
 ```
 
+## Environment Variables
+
+The program expects to have 2 environment variables set before execution.
+| Variable | Description |
+| -------- | ----------------------------------- |
+| CANVAS_API | Canvas base domain for your institution. For example, https://school.instructure.com/api/v1 |
+| CANVAS_TOKEN | Token authorizing access to Canvas LMS REST API. More infor can be found [here](https://canvas.instructure.com/doc/api/) |
+|
+
 ## Example usage
 
 ```bash
