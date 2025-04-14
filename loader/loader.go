@@ -233,10 +233,7 @@ func LoadScores(courseID int,
 	var wg sync.WaitGroup
 	comm := make(chan ResponseResult, len(builtReqs))
 	for i := 0; i < len(builtReqs); i += batchSize {
-		end := i + batchSize
-		if end > len(builtReqs) {
-			end = len(builtReqs)
-		}
+		end := min(i + batchSize, len(builtReqs))
 		wg.Add(1)
 		go sendRequests(client, builtReqs[i:end], &comm, &wg)
 
