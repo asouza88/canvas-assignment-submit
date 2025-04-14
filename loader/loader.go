@@ -2,7 +2,6 @@ package loader
 
 import (
 	"encoding/csv"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -197,55 +196,28 @@ func sendRequests(client *http.Client, reqs []CanvasRequest, outChan *chan Respo
 	}
 }
 
-func LoadScores() {
-	var courseID int
-	var assignmentID int
-	var headerRow int
-	var studentIdCol int
-	var scoreCol int
-	var commentCol int
-	var csvFile string
-
-	flag.IntVar(&courseID, "c", -1, "Canvas Course ID")
-	flag.IntVar(&assignmentID, "a", -1, "Canvas Assignment ID")
-	flag.IntVar(&headerRow, "h", 0, "Header row index in CSV")
-	flag.IntVar(&studentIdCol, "i", 0, "Column Index for student ID")
-	flag.IntVar(&scoreCol, "s", 1, "Column Index for Assignment Score")
-	flag.IntVar(&commentCol, "t", 2, "Column index for Comment for Assignment")
-
-	flag.Parse()
-
-	if courseID < 0 {
-		fmt.Println("Positional Argument -c, Canvas CourseID is missing.")
-		flag.Usage()
-		os.Exit(-1)
-	}
-
-	if assignmentID < 0 {
-		fmt.Println("Positional Argument -a, Canvas AssignmentID is missing.")
-		flag.Usage()
-		os.Exit(-1)
-	}
+// LoadScores will upload assignment feedback to Canvas LMS using Canvas's REST API
+// the program will lok for CANVAS_DOMAIN and CANVAS_TOKEN evironment variables.
+func LoadScores(courseID int,
+	assignmentID int,
+	headerRow int,
+	studentIdCol int,
+	scoreCol int,
+	commentCol int,
+	csvFile string) {
+	
 
 
 	var data map[string]AssignmentFeedback
 	var err error
-	if len(flag.Args()) > 0 {
-		//csv should be first element in return of flag.Args()
-		csvFile = flag.Arg(0)
-		data, err = readCSV(csvFile, ReaderOptions{
-			headerRow:    headerRow,
-			studentIdCol: studentIdCol,
-			scoreCol:     scoreCol,
-			commentCol:   commentCol,
-		})
-		if err != nil {
-			log.Fatalln("failed reading from csv file ", csvFile)
-		}
-	} else {
-		fmt.Println("Required Argument csvfile is missing OR csv formatted data piped into stdin")
-		flag.Usage()
-		os.Exit(-2)
+	data, err = readCSV(csvFile, ReaderOptions{
+		headerRow:    headerRow,
+		studentIdCol: studentIdCol,
+		scoreCol:     scoreCol,
+		commentCol:   commentCol,
+	})
+	if err != nil {
+		log.Fatalln("failed reading from csv file ", csvFile)
 	}
 
 	fmt.Printf("Course Id: %d\nAssign Id: %d\nHeader Row index: %d\nStudent Id Col: %d\nScore Col: %d\nComment Col: %d\nCSVFile: %s\n", courseID, assignmentID, headerRow, studentIdCol, scoreCol, commentCol, csvFile)
