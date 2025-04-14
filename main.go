@@ -40,6 +40,9 @@ type ReaderOptions struct {
 	studentIdCol int
 }
 
+func readCSVDataFromSTDIN(stdin_stream io.Reader) (map[string]AssignmentFeedback, error) {
+	return nil, nil
+}
 func readCSV(filename string, options ReaderOptions) (map[string]AssignmentFeedback, error) {
 
 	file, err := os.Open(filename)
@@ -92,7 +95,10 @@ func buildRequests(data map[string]AssignmentFeedback, courseNumber int, assignm
 	reqCnt := 0
 	reqs := make([]CanvasRequest, reqTotal)
 	baseDomain := os.Getenv("CANVAS_DOMAIN")
-	apikey := os.Getenv("CANVAS_API")
+	apikey := os.Getenv("CANVAS_TOKEN")
+	if baseDomain == "" || apikey == "" {
+		return nil, fmt.Errorf("canvas API and Domain not set in environment")
+	}
 	for studentId, feedbackInfo := range data {
 		reqs[reqCnt] = CanvasRequest{
 			url:    fmt.Sprintf("%s/courses/%d/assignments/%d/submissions/sis_user_id:%s", baseDomain, courseNumber, assignmentNumber, studentId),
@@ -214,7 +220,9 @@ func main() {
 	rootCmd.Run = func(cmd *cobra.Command, args []string) {
 
 		fmt.Printf("Course Id: %d\nAssign Id: %d\nHeader Row index: %d\nStudent Id Col: %d\nScore Col: %d\nComment Col: %d\nFile: %s\n", courseID, assignID, headerRow, studentIdCol, scoreCol, commentCol, csvFile)
-		//rootDir := filepath.Dir(csvFile)
+		reader := cmd.InOrStdin()
+		fmt.Println(reader)
+		os.Exit(1)
 		data, err := readCSV(csvFile, ReaderOptions{
 			headerRow:    headerRow,
 			studentIdCol: studentIdCol,
@@ -243,10 +251,7 @@ func main() {
 			}
 			wg.Add(1)
 			go sendRequests(client, builtReqs[i:end], &comm, &wg)
-			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error Running command %v\n", err)
-				os.Exit(-2)
-			}
+
 		}
 		//wait for all go routines to finish their batches
 		go func() {
@@ -266,7 +271,6 @@ func main() {
 			fmt.Printf("\rTotal: %4.f Success: %.f Failed: %.f  %.2f%%", size, success, failed, ((success+failed)/size)*100)
 		}
 	}
-
 	if err := rootCmd.Execute(); err != nil {
 		logger.Printf("Error Running command %v", err)
 		os.Exit(-2)
